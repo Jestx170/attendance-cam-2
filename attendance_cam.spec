@@ -12,11 +12,16 @@ tf_datas, tf_binaries, tf_hiddenimports = collect_all("tensorflow")
 deepface_datas, deepface_binaries, deepface_hiddenimports = collect_all("deepface")
 cv2_datas, cv2_binaries, cv2_hiddenimports = collect_all("cv2")
 crypto_datas, crypto_binaries, crypto_hiddenimports = collect_all("cryptography")
+# tf-keras (Keras 2) — DeepFace ต้องการตัวนี้ เพราะ Keras 3 ไม่ compatible
+try:
+    tfk_datas, tfk_binaries, tfk_hiddenimports = collect_all("tf_keras")
+except Exception:
+    tfk_datas, tfk_binaries, tfk_hiddenimports = [], [], []
 
 a = Analysis(
     ["launcher.py"],
     pathex=["."],
-    binaries=tf_binaries + deepface_binaries + cv2_binaries + crypto_binaries,
+    binaries=tf_binaries + deepface_binaries + cv2_binaries + crypto_binaries + tfk_binaries,
     datas=[
         # Static frontend build
         ("frontend_dist", "frontend_dist"),
@@ -27,7 +32,7 @@ a = Analysis(
         ("odoo_sync.py", "."),
         # โฟลเดอร์เปล่าให้ PyInstaller สร้าง (ถ้ายังไม่มี)
         # registered_faces และ scan_logs จะถูกสร้างอัตโนมัติโดย main_api_fixed.py
-    ] + tf_datas + deepface_datas + cv2_datas + crypto_datas,
+    ] + tf_datas + deepface_datas + cv2_datas + crypto_datas + tfk_datas,
     hiddenimports=[
         "uvicorn",
         "uvicorn.logging",
@@ -52,7 +57,8 @@ a = Analysis(
         "cryptography",
         "cryptography.hazmat.backends.openssl",
         "cryptography.hazmat.bindings.openssl",
-    ] + tf_hiddenimports + deepface_hiddenimports + cv2_hiddenimports + crypto_hiddenimports,
+        "tf_keras",
+    ] + tf_hiddenimports + deepface_hiddenimports + cv2_hiddenimports + crypto_hiddenimports + tfk_hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

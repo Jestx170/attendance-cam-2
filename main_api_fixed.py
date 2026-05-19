@@ -1,5 +1,9 @@
 # แก้บรรทัดแรกของไฟล์
 import os
+# บังคับให้ TensorFlow ใช้ Keras 2 (tf-keras) ไม่ใช่ Keras 3
+# เพราะ DeepFace ยังไม่ compatible กับ Keras 3 → จะเจอ
+# "KerasHistory object has no attribute 'layer'" ตอน register
+os.environ["TF_USE_LEGACY_KERAS"] = "1"
 os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
     "rtsp_transport;tcp"
     "|buffer_size;524288"       # ⭐ ลดจาก 2MB → 512KB
@@ -281,9 +285,34 @@ def get_today_records(eid: str) -> list:
     return records
 
 
+def deepface_represent_safe(img, *, model_name: str = "ArcFace", enforce_detection: bool = False, detector_backend: str = "skip"):
+    """เรียก DeepFace.represent แบบ thread-safe + fallback สำหรับอาการ KerasHistory/layer"""
+    try:
+        with _deepface_lock:
+            return DeepFace.represent(
+                img_path=img,
+                model_name=model_name,
+                enforce_detection=enforce_detection,
+                detector_backend=detector_backend,
+            )
+    except Exception as e:
+        msg = str(e)
+        if "KerasHistory" in msg or "no attribute 'layer'" in msg or "has no attribute 'layer'" in msg:
+            log.warning(f"DeepFace represent fallback due to keras/layer error: {msg}")
+            with _deepface_lock:
+                return DeepFace.represent(
+                    img_path=img,
+                    model_name=model_name,
+                    enforce_detection=False,
+                    detector_backend="skip",
+                )
+        raise
+
+
 def find_match(face_img, skip_detect: bool = False, skip_if_busy: bool = False):
     with _emb_lock:
         mat, ids, names = _emb_matrix, _emb_ids, _emb_names
+
     if len(ids) == 0:
         return None, "Unknown", 0.0
 
@@ -294,8 +323,8 @@ def find_match(face_img, skip_detect: bool = False, skip_if_busy: bool = False):
     if not acquired:
         return None, "busy", 0.0
     try:
-        result = DeepFace.represent(
-            img_path=face_img,
+        result = deepface_represent_safe(
+            face_img,
             model_name="ArcFace",
             enforce_detection=False,
             detector_backend="skip" if skip_detect else "opencv",
@@ -933,9 +962,7 @@ async def register_employee(data: RegisterRequest, _: None = Depends(_require_ad
                 continue
 
             cv2.imwrite(os.path.join(save_dir, f"face_{len(embeddings)}.jpg"), face_img)
-            with _deepface_lock:
-                result = DeepFace.represent(img_path=face_img, model_name="ArcFace",
-                                            enforce_detection=False, detector_backend="skip")
+            result = deepface_represent_safe(face_img, model_name="ArcFace", enforce_detection=False, detector_backend="skip")
             embeddings.append(result[0]["embedding"])
 
         if not embeddings:
@@ -1020,8 +1047,7 @@ def register_from_cctv(data: RegisterCCTVRequest, _: None = Depends(_require_adm
         for i, (crop, sharp) in enumerate(best):
             cv2.imwrite(os.path.join(save_dir, f"face_{i}.jpg"), crop)
             try:
-                with _deepface_lock:
-                    result = DeepFace.represent(img_path=crop, model_name="ArcFace", enforce_detection=False, detector_backend="skip")
+                result = deepface_represent_safe(crop, model_name="ArcFace", enforce_detection=False, detector_backend="skip")
                 embeddings.append(result[0]["embedding"])
                 log.info(f"CCTV register embed {i+1}/{len(best)} done (sharp={sharp:.1f})")
             except Exception as e:
