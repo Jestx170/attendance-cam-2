@@ -11,11 +11,12 @@ block_cipher = None
 tf_datas, tf_binaries, tf_hiddenimports = collect_all("tensorflow")
 deepface_datas, deepface_binaries, deepface_hiddenimports = collect_all("deepface")
 cv2_datas, cv2_binaries, cv2_hiddenimports = collect_all("cv2")
+crypto_datas, crypto_binaries, crypto_hiddenimports = collect_all("cryptography")
 
 a = Analysis(
     ["launcher.py"],
     pathex=["."],
-    binaries=tf_binaries + deepface_binaries + cv2_binaries,
+    binaries=tf_binaries + deepface_binaries + cv2_binaries + crypto_binaries,
     datas=[
         # Static frontend build
         ("frontend_dist", "frontend_dist"),
@@ -26,7 +27,7 @@ a = Analysis(
         ("odoo_sync.py", "."),
         # โฟลเดอร์เปล่าให้ PyInstaller สร้าง (ถ้ายังไม่มี)
         # registered_faces และ scan_logs จะถูกสร้างอัตโนมัติโดย main_api_fixed.py
-    ] + tf_datas + deepface_datas + cv2_datas,
+    ] + tf_datas + deepface_datas + cv2_datas + crypto_datas,
     hiddenimports=[
         "uvicorn",
         "uvicorn.logging",
@@ -48,7 +49,10 @@ a = Analysis(
         "requests",
         "main_api_fixed",
         "odoo_sync",
-    ] + tf_hiddenimports + deepface_hiddenimports + cv2_hiddenimports,
+        "cryptography",
+        "cryptography.hazmat.backends.openssl",
+        "cryptography.hazmat.bindings.openssl",
+    ] + tf_hiddenimports + deepface_hiddenimports + cv2_hiddenimports + crypto_hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
