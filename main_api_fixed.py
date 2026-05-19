@@ -72,11 +72,16 @@ if not os.path.exists(LOG_FILE):
     with open(LOG_FILE, "w", encoding="utf-8") as f:
         pass
 
+DB = {}
 if os.path.exists(DB_FILE):
-    with open(DB_FILE, "r", encoding="utf-8") as f:
-        DB = json.load(f)
-else:
-    DB = {}
+    try:
+        with open(DB_FILE, "r", encoding="utf-8") as f:
+            content = f.read().strip()
+            if content:
+                DB = json.loads(content)
+    except (json.JSONDecodeError, ValueError) as e:
+        log.warning(f"embeddings.json เสียหายหรือว่าง — เริ่มต้นด้วย DB เปล่า ({e})")
+        DB = {}
 
 # Pre-computed normalized embedding matrix for fast cosine similarity
 _emb_lock = threading.Lock()
@@ -957,9 +962,29 @@ async def register_employee(data: RegisterRequest, _: None = Depends(_require_ad
                 x2, y2 = min(frame.shape[1], x + w + pad), min(frame.shape[0], y + h + pad)
                 face_img = frame[y1:y2, x1:x2]
             else:
-                skipped += 1
-                log.warning(f"register: รูป {i} ไม่พบใบหน้า — ข้าม")
-                continue
+                # Haar หาไม่เจอ → ลอง DeepFace's own detector (แม่นกว่า)
+                try:
+                    extracted = DeepFace.extract_faces(
+                        img_path=frame,
+                        detector_backend="opencv",
+                        enforce_detection=True,
+                        align=True,
+                    )
+                    if extracted:
+                        face_arr = extracted[0]["face"]
+                        # extract_faces คืน float [0,1] — แปลงกลับเป็น uint8 BGR
+                        if face_arr.dtype != np.uint8:
+                            face_arr = (face_arr * 255).astype(np.uint8)
+                        if face_arr.shape[-1] == 3:
+                            face_img = cv2.cvtColor(face_arr, cv2.COLOR_RGB2BGR)
+                        else:
+                            face_img = face_arr
+                    else:
+                        raise ValueError("no face")
+                except Exception:
+                    skipped += 1
+                    log.warning(f"register: รูป {i} ไม่พบใบหน้า — ข้าม")
+                    continue
 
             cv2.imwrite(os.path.join(save_dir, f"face_{len(embeddings)}.jpg"), face_img)
             result = deepface_represent_safe(face_img, model_name="ArcFace", enforce_detection=False, detector_backend="skip")
