@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+python-multipart
+opencv-python-headless
+deepface
+tensorflow==2.15.0
+tf-keras
+requests
+numpy
+pillow
+cryptography
