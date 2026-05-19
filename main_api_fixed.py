@@ -811,13 +811,21 @@ async def odoo_config(data: OdooConfig, _: None = Depends(_require_admin)):
     return {"status": "ok" if ok else "failed", "connected": ok}
 
 @api.post("/scan")
-async def scan_face(data: ScanRequest):
+def scan_face(data: ScanRequest):
+    # ใช้ def (sync) ไม่ใช่ async def — FastAPI จะรันใน thread pool
+    # ป้องกัน DeepFace blocking event loop ทำให้ทุก request ค้าง
+    log.info("scan: เริ่มประมวลผล")
+    if not _model_ready:
+        log.warning("scan: ArcFace model ยังโหลดไม่เสร็จ — กรุณารอ")
+        raise HTTPException(status_code=503, detail="โมเดลกำลังโหลด กรุณารอ 1-2 นาที แล้วลองใหม่")
     try:
         header, encoded = data.image.split(",", 1)
         binary = base64.b64decode(encoded)
         nparr = np.frombuffer(binary, np.uint8)
         frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        log.info(f"scan: decode image OK {frame.shape}")
         faces = detect_faces(frame)
+        log.info(f"scan: ตรวจพบใบหน้า {len(faces)} หน้า")
         action = get_action_by_time()
 
         if faces:
@@ -826,10 +834,14 @@ async def scan_face(data: ScanRequest):
             x1, y1 = max(0, x - pad), max(0, y - pad)
             x2, y2 = min(frame.shape[1], x + w + pad), min(frame.shape[0], y + h + pad)
             face_img = frame[y1:y2, x1:x2]
+            log.info("scan: เรียก find_match (skip_detect=True)")
             emp_id, name, score = find_match(face_img, skip_detect=True)
+            log.info(f"scan: find_match เสร็จ name={name} score={score:.3f}")
             _save_scan_log(frame, (x1, y1, x2, y2), name, score)
         else:
+            log.info("scan: เรียก find_match (skip_detect=False)")
             emp_id, name, score = find_match(frame, skip_detect=False)
+            log.info(f"scan: find_match เสร็จ name={name} score={score:.3f}")
             _save_scan_log(frame, None, name, score)
 
         status = "unknown"
