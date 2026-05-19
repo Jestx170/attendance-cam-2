@@ -1,0 +1,15 @@
+{
+  "checkin_before": "08:00:59",
+  "late_cutoff": "09:00:00",
+  "checkout_after": "17:00:00",
+  "cooldown_seconds": 300,
+  "line_token": "WOnoOIdEIeSa34MTUky+RiRU8a9f4c7d5uEIDI2fPhvLJzc9/LjhyLcg3SmC36TcHADMyfebOGRRhe+5R3i/RJSvy2QOTx0lOMULWGEBd7WWzsNUyj8BZoF3biH09daweDWnw5ysFpD4SdwGbbfyqwdB04t89/1O/w1cDnyilFU=",
+  "line_group_id": "C5bf75f9db54624bbe44e51c22f40c9e1",
+  "odoo": {
+    "url": "https://aacc-ai.com",
+    "db": "aacc",
+    "username": "admin",
+    "api_key": "ca802f28bd3c0212cb39e0e376fa0d0f3dbc3bb3"
+  },
+  "rtsp_url": ""
+}
